@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "KidNeuro",
+    "slug": "kidneuro",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "kidneuro",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0c8de7"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.kidneuro.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0c8de7"
+      },
+      "package": "app.kidneuro.mobile"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#0c8de7"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "CHANGEME_expo_project_id"
+      },
+      "apiUrl": "https://api.kidneuro.app",
+      "gameUrl": "https://games.kidneuro.app"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/CHANGEME_expo_project_id"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}

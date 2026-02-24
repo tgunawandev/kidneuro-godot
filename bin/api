@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# =============================================================================
+# api - KidNeuro API Management
+# Usage: ./bin/api {dev|test|lint|routes|shell|create-admin|openapi}
+# =============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+API_DIR="$PROJECT_DIR/api"
+cd "$API_DIR"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
+info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
+ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
+err()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+
+# Activate venv if exists
+[[ -d "$API_DIR/venv" ]] && source "$API_DIR/venv/bin/activate"
+[[ -d "$API_DIR/.venv" ]] && source "$API_DIR/.venv/bin/activate"
+
+cmd_dev() {
+    info "Starting API dev server..."
+    uvicorn kidneuro.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src
+}
+
+cmd_test() {
+    info "Running tests..."
+    pytest "${@:---cov=kidneuro --cov-report=term-missing -v}"
+}
+
+cmd_lint() {
+    info "Running linter..."
+    ruff check src/ tests/
+    ruff format --check src/ tests/
+    ok "Lint passed"
+}
+
+cmd_format() {
+    info "Formatting code..."
+    ruff check --fix src/ tests/
+    ruff format src/ tests/
+    ok "Formatted"
+}
+
+cmd_typecheck() {
+    info "Running type checker..."
+    mypy src/kidneuro/
+}
+
+cmd_routes() {
+    python -m kidneuro.cli routes
+}
+
+cmd_shell() {
+    python -m kidneuro.cli shell
+}
+
+cmd_create_admin() {
+    python -m kidneuro.cli create-admin
+}
+
+cmd_check() {
+    python -m kidneuro.cli check
+}
+
+cmd_openapi() {
+    local output="${1:-openapi.json}"
+    info "Generating OpenAPI spec to $output..."
+    python -c "
+import json
+from kidneuro.main import app
+spec = app.openapi()
+with open('$output', 'w') as f:
+    json.dump(spec, f, indent=2)
+print('Generated: $output')
+"
+    ok "OpenAPI spec written to $output"
+}
+
+cmd_install() {
+    info "Installing API dependencies..."
+    if command -v uv &>/dev/null; then
+        uv venv
+        uv pip install -e ".[dev]"
+    else
+        python -m venv venv
+        source venv/bin/activate
+        pip install -e ".[dev]"
+    fi
+    ok "Dependencies installed"
+}
+
+case "${1:-help}" in
+    dev)            cmd_dev ;;
+    test)           shift; cmd_test "$@" ;;
+    lint)           cmd_lint ;;
+    format|fmt)     cmd_format ;;
+    typecheck)      cmd_typecheck ;;
+    routes)         cmd_routes ;;
+    shell)          cmd_shell ;;
+    create-admin)   cmd_create_admin ;;
+    check)          cmd_check ;;
+    openapi)        cmd_openapi "${2:-openapi.json}" ;;
+    install)        cmd_install ;;
+    help|--help|-h)
+        echo "Usage: ./bin/api <command> [args]"
+        echo ""
+        echo "Commands:"
+        echo "  dev              Start development server with hot-reload"
+        echo "  test [args]      Run pytest (pass extra args)"
+        echo "  lint             Run ruff linter"
+        echo "  format           Auto-format code with ruff"
+        echo "  typecheck        Run mypy type checker"
+        echo "  routes           List all API routes"
+        echo "  shell            Open interactive Python shell"
+        echo "  create-admin     Create admin user interactively"
+        echo "  check            Run health checks"
+        echo "  openapi [file]   Generate OpenAPI JSON spec"
+        echo "  install          Install dependencies (uses uv if available)"
+        ;;
+    *)
+        err "Unknown command: $1"
+        exec "$0" help
+        ;;
+esac

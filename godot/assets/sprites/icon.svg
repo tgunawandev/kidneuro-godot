@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#0c8de7"/>
+  <text x="64" y="78" font-family="Arial, sans-serif" font-size="52" font-weight="bold" text-anchor="middle" fill="white">KN</text>
+  <circle cx="38" cy="42" r="6" fill="#FFD93D"/>
+  <circle cx="90" cy="42" r="6" fill="#6BCB77"/>
+</svg>

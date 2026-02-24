@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# =============================================================================
+# expo - KidNeuro Expo/Mobile App Management
+# Usage: ./bin/expo {dev|build|submit|update|install|prebuild|doctor}
+# =============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+MOBILE_DIR="$PROJECT_DIR/mobile"
+cd "$MOBILE_DIR"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; YELLOW='\033[0;33m'; NC='\033[0m'
+info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
+ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+err()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+
+# Ensure npx/pnpm available
+PKG_MGR="npx"
+[[ -f "$MOBILE_DIR/pnpm-lock.yaml" ]] && PKG_MGR="pnpm"
+[[ -f "$MOBILE_DIR/yarn.lock" ]] && PKG_MGR="yarn"
+
+cmd_dev() {
+    local platform="${1:-}"
+    info "Starting Expo dev server..."
+    case "$platform" in
+        android)    npx expo start --android ;;
+        ios)        npx expo start --ios ;;
+        web)        npx expo start --web ;;
+        tunnel)     npx expo start --tunnel ;;
+        *)          npx expo start ;;
+    esac
+}
+
+cmd_build() {
+    local platform="${1:-all}"
+    local profile="${2:-production}"
+    info "Building $platform ($profile)..."
+
+    case "$platform" in
+        android)    eas build --platform android --profile "$profile" ;;
+        ios)        eas build --platform ios --profile "$profile" ;;
+        all)        eas build --platform all --profile "$profile" ;;
+        preview)    eas build --profile preview ;;
+        dev)        eas build --profile development --platform all ;;
+        *)          err "Unknown platform: $platform"; exit 1 ;;
+    esac
+}
+
+cmd_submit() {
+    local platform="${1:-all}"
+    info "Submitting $platform to stores..."
+    case "$platform" in
+        android)    eas submit --platform android ;;
+        ios)        eas submit --platform ios ;;
+        all)        eas submit --platform all ;;
+        *)          err "Unknown platform: $platform"; exit 1 ;;
+    esac
+}
+
+cmd_update() {
+    local message="${1:-OTA update}"
+    info "Publishing OTA update: $message"
+    eas update --message "$message"
+    ok "Update published"
+}
+
+cmd_install() {
+    info "Installing mobile dependencies..."
+    if command -v pnpm &>/dev/null; then
+        pnpm install
+    elif command -v yarn &>/dev/null; then
+        yarn install
+    else
+        npm install
+    fi
+    ok "Dependencies installed"
+}
+
+cmd_prebuild() {
+    local platform="${1:-}"
+    info "Running prebuild..."
+    if [[ -n "$platform" ]]; then
+        npx expo prebuild --platform "$platform"
+    else
+        npx expo prebuild
+    fi
+    ok "Prebuild complete"
+}
+
+cmd_doctor() {
+    info "Running Expo Doctor..."
+    npx expo-doctor
+}
+
+cmd_lint() {
+    info "Linting mobile code..."
+    npx eslint . --ext .ts,.tsx
+    npx tsc --noEmit
+    ok "Lint passed"
+}
+
+cmd_clean() {
+    info "Cleaning mobile build artifacts..."
+    rm -rf node_modules .expo dist ios/Pods android/build android/app/build
+    ok "Cleaned"
+}
+
+cmd_config() {
+    info "Expo Config:"
+    npx expo config
+}
+
+cmd_devices() {
+    info "Registered devices:"
+    eas device:list 2>/dev/null || warn "No devices registered. Run: eas device:create"
+}
+
+case "${1:-help}" in
+    dev|start)          cmd_dev "${2:-}" ;;
+    build)              cmd_build "${2:-all}" "${3:-production}" ;;
+    submit)             cmd_submit "${2:-all}" ;;
+    update|ota)         cmd_update "${2:-OTA update}" ;;
+    install)            cmd_install ;;
+    prebuild)           cmd_prebuild "${2:-}" ;;
+    doctor)             cmd_doctor ;;
+    lint)               cmd_lint ;;
+    clean)              cmd_clean ;;
+    config)             cmd_config ;;
+    devices)            cmd_devices ;;
+    help|--help|-h)
+        echo "Usage: ./bin/expo <command> [args]"
+        echo ""
+        echo "Development:"
+        echo "  dev [platform]         Start Expo dev server (android|ios|web|tunnel)"
+        echo "  install                Install dependencies"
+        echo "  prebuild [platform]    Run Expo prebuild"
+        echo "  lint                   Run ESLint + TypeScript check"
+        echo "  clean                  Remove build artifacts"
+        echo ""
+        echo "Build & Deploy:"
+        echo "  build [platform] [profile]  Build with EAS (android|ios|all|preview|dev)"
+        echo "  submit [platform]           Submit to stores (android|ios|all)"
+        echo "  update [message]            Publish OTA update"
+        echo ""
+        echo "Utilities:"
+        echo "  doctor     Run Expo Doctor diagnostics"
+        echo "  config     Show Expo configuration"
+        echo "  devices    List registered test devices"
+        ;;
+    *)
+        err "Unknown command: $1"
+        exec "$0" help
+        ;;
+esac

@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# =============================================================================
+# db - KidNeuro Database Operations
+# Usage: ./bin/db {migrate|rollback|seed|reset|shell|backup|restore|create}
+# =============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_DIR"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'
+BLUE='\033[0;34m'; NC='\033[0m'
+
+info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
+ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+err()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+
+# Load env
+ENV_FILE=".env"
+[[ "${1:-}" == "--prod" ]] && { ENV_FILE=".env.prod"; shift; }
+if [[ -f "$ENV_FILE" ]]; then
+    set -a; source "$ENV_FILE"; set +a
+fi
+
+DB_HOST="${POSTGRES_HOST:-localhost}"
+DB_PORT="${POSTGRES_PORT:-5432}"
+DB_USER="${POSTGRES_USER:-kidneuro}"
+DB_PASS="${POSTGRES_PASSWORD:-kidneuro_dev_password}"
+DB_NAME="${POSTGRES_DB:-kidneuro_dev}"
+BACKUP_DIR="$PROJECT_DIR/backups"
+
+cmd_migrate() {
+    info "Running migrations..."
+    cd "$PROJECT_DIR/api"
+    alembic upgrade head
+    ok "Migrations complete"
+}
+
+cmd_makemigration() {
+    local message="${1:-auto}"
+    info "Creating migration: $message"
+    cd "$PROJECT_DIR/api"
+    alembic revision --autogenerate -m "$message"
+    ok "Migration created"
+}
+
+cmd_rollback() {
+    local steps="${1:-1}"
+    info "Rolling back $steps migration(s)..."
+    cd "$PROJECT_DIR/api"
+    alembic downgrade "-$steps"
+    ok "Rollback complete"
+}
+
+cmd_seed() {
+    info "Seeding database..."
+    cd "$PROJECT_DIR/api"
+    python -m kidneuro.cli seed
+    ok "Database seeded"
+}
+
+cmd_reset() {
+    warn "This will DROP and recreate the database: $DB_NAME"
+    read -rp "Are you sure? (y/N) " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        info "Dropping database..."
+        PGPASSWORD="$DB_PASS" dropdb -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" --if-exists "$DB_NAME"
+        info "Creating database..."
+        PGPASSWORD="$DB_PASS" createdb -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" "$DB_NAME"
+        cmd_migrate
+        cmd_seed
+        ok "Database reset complete"
+    fi
+}
+
+cmd_create() {
+    local name="${1:-$DB_NAME}"
+    info "Creating database: $name"
+    PGPASSWORD="$DB_PASS" createdb -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" "$name" 2>/dev/null || true
+    ok "Database created: $name"
+}
+
+cmd_shell() {
+    info "Connecting to PostgreSQL..."
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME"
+}
+
+cmd_backup() {
+    mkdir -p "$BACKUP_DIR"
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_file="$BACKUP_DIR/${DB_NAME}_${timestamp}.sql.gz"
+
+    info "Backing up $DB_NAME to $backup_file..."
+    PGPASSWORD="$DB_PASS" pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+        --no-owner --no-privileges --clean --if-exists | gzip > "$backup_file"
+
+    local size
+    size=$(du -h "$backup_file" | cut -f1)
+    ok "Backup complete: $backup_file ($size)"
+}
+
+cmd_restore() {
+    local backup_file="${1:-}"
+    if [[ -z "$backup_file" ]]; then
+        # List available backups
+        if [[ -d "$BACKUP_DIR" ]]; then
+            info "Available backups:"
+            ls -lh "$BACKUP_DIR"/*.sql.gz 2>/dev/null || echo "  No backups found"
+        fi
+        err "Usage: ./bin/db restore <backup_file>"
+        exit 1
+    fi
+
+    warn "This will restore $backup_file to $DB_NAME"
+    read -rp "Are you sure? (y/N) " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        info "Restoring from $backup_file..."
+        gunzip -c "$backup_file" | PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME"
+        ok "Restore complete"
+    fi
+}
+
+cmd_list() {
+    info "Databases:"
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c '\l'
+}
+
+case "${1:-help}" in
+    migrate)        cmd_migrate ;;
+    makemigration)  cmd_makemigration "${2:-auto}" ;;
+    rollback)       cmd_rollback "${2:-1}" ;;
+    seed)           cmd_seed ;;
+    reset)          cmd_reset ;;
+    create)         cmd_create "${2:-}" ;;
+    shell|psql)     cmd_shell ;;
+    backup)         cmd_backup ;;
+    restore)        cmd_restore "${2:-}" ;;
+    list)           cmd_list ;;
+    help|--help|-h)
+        echo "Usage: ./bin/db [--prod] <command> [args]"
+        echo ""
+        echo "Commands:"
+        echo "  migrate              Run pending migrations"
+        echo "  makemigration [msg]  Create new migration"
+        echo "  rollback [n]         Rollback n migrations (default: 1)"
+        echo "  seed                 Seed database with demo data"
+        echo "  reset                Drop, recreate, migrate, and seed"
+        echo "  create [name]        Create a new database"
+        echo "  shell                Open psql shell"
+        echo "  backup               Create gzipped SQL backup"
+        echo "  restore <file>       Restore from backup file"
+        echo "  list                 List all databases"
+        ;;
+    *)
+        err "Unknown command: $1"
+        exec "$0" help
+        ;;
+esac

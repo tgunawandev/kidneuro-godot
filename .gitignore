@@ -1,0 +1,127 @@
+# =============================================================================
+# KidNeuro Godot - Git Ignore
+# =============================================================================
+
+# ---- Environment & Secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+credentials.json
+service-account.json
+google-services.json
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+venv/
+.venv/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ---- Node.js ----
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/cache
+.yarn/unplugged
+.parcel-cache/
+.turbo/
+
+# ---- Next.js ----
+web/.next/
+web/out/
+web/.vercel
+
+# ---- Expo / React Native ----
+mobile/.expo/
+mobile/dist/
+mobile/ios/Pods/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/build/
+*.apk
+*.aab
+*.ipa
+*.tar.gz
+
+# ---- Godot ----
+godot/.godot/
+godot/.import/
+godot/export/*.pck
+godot/export/*.exe
+godot/export/*.x86_64
+godot/export/*.apk
+godot/export/*.aab
+godot/export/*.html
+godot/export/*.js
+godot/export/*.wasm
+godot/export/*.zip
+godot/android/build/
+
+# ---- IDE ----
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+.classpath
+
+# ---- OS ----
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ---- Docker ----
+docker-data/
+postgres-data/
+redis-data/
+
+# ---- Testing ----
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.nox/
+coverage/
+*.lcov
+
+# ---- Logs ----
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- Misc ----
+*.backup
+*.bak
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/

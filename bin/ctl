@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# =============================================================================
+# ctl - KidNeuro Server Control
+# Usage: ./bin/ctl {start|stop|restart|status|logs|build|pull}
+# =============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_DIR"
+
+# Colors
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'
+BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
+
+info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
+ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+err()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+
+# Detect environment
+ENV_FILE=".env"
+COMPOSE_FILE="docker-compose.yml"
+PROFILE="dev"
+
+if [[ "${1:-}" == "--prod" ]] || [[ "${APP_ENV:-}" == "production" ]]; then
+    ENV_FILE=".env.prod"
+    COMPOSE_FILE="docker-compose.prod.yml"
+    PROFILE="prod"
+    shift 2>/dev/null || true
+fi
+
+compose() {
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
+}
+
+cmd_start() {
+    info "Starting KidNeuro ($PROFILE)..."
+    if [[ "$PROFILE" == "prod" ]]; then
+        compose up -d
+    else
+        compose up -d postgres redis mailpit
+        info "Infrastructure ready. Start API with: cd api && uvicorn kidneuro.main:app --reload"
+        info "Or start all: ./bin/ctl start-all"
+    fi
+    ok "Started"
+    cmd_status
+}
+
+cmd_start_all() {
+    info "Starting all services ($PROFILE)..."
+    compose up -d
+    ok "All services started"
+    cmd_status
+}
+
+cmd_stop() {
+    info "Stopping KidNeuro ($PROFILE)..."
+    compose down
+    ok "Stopped"
+}
+
+cmd_restart() {
+    local service="${1:-}"
+    if [[ -n "$service" ]]; then
+        info "Restarting $service..."
+        compose restart "$service"
+    else
+        cmd_stop
+        cmd_start
+    fi
+}
+
+cmd_status() {
+    echo ""
+    echo -e "${CYAN}=== KidNeuro Status ($PROFILE) ===${NC}"
+    compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || compose ps
+    echo ""
+
+    # Health checks
+    local api_url="http://localhost:8000/health"
+    if curl -sf "$api_url" > /dev/null 2>&1; then
+        ok "API: healthy"
+    else
+        warn "API: not responding"
+    fi
+
+    if docker compose -f "$COMPOSE_FILE" exec -T postgres pg_isready -U "${POSTGRES_USER:-kidneuro}" -q 2>/dev/null; then
+        ok "PostgreSQL: ready"
+    else
+        warn "PostgreSQL: not ready"
+    fi
+
+    if docker compose -f "$COMPOSE_FILE" exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; then
+        ok "Redis: ready"
+    else
+        warn "Redis: not ready"
+    fi
+}
+
+cmd_logs() {
+    local service="${1:-}"
+    local lines="${2:-100}"
+    if [[ -n "$service" ]]; then
+        compose logs -f --tail="$lines" "$service"
+    else
+        compose logs -f --tail="$lines"
+    fi
+}
+
+cmd_build() {
+    local service="${1:-}"
+    info "Building images..."
+    if [[ -n "$service" ]]; then
+        compose build "$service"
+    else
+        compose build
+    fi
+    ok "Build complete"
+}
+
+cmd_pull() {
+    info "Pulling latest images..."
+    compose pull
+    ok "Pull complete"
+}
+
+cmd_clean() {
+    warn "This will remove all containers, volumes, and images for this project."
+    read -rp "Are you sure? (y/N) " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        compose down -v --rmi local
+        ok "Cleaned"
+    fi
+}
+
+# --- Main ---
+case "${1:-help}" in
+    start)      cmd_start ;;
+    start-all)  cmd_start_all ;;
+    stop)       cmd_stop ;;
+    restart)    cmd_restart "${2:-}" ;;
+    status)     cmd_status ;;
+    logs)       cmd_logs "${2:-}" "${3:-100}" ;;
+    build)      cmd_build "${2:-}" ;;
+    pull)       cmd_pull ;;
+    clean)      cmd_clean ;;
+    help|--help|-h)
+        echo "Usage: ./bin/ctl [--prod] <command> [args]"
+        echo ""
+        echo "Commands:"
+        echo "  start        Start infrastructure (dev) or all services (prod)"
+        echo "  start-all    Start all services including API"
+        echo "  stop         Stop all services"
+        echo "  restart      Restart all or specific service"
+        echo "  status       Show service status and health"
+        echo "  logs [svc]   Follow logs (optionally for specific service)"
+        echo "  build [svc]  Build Docker images"
+        echo "  pull         Pull latest images"
+        echo "  clean        Remove all containers, volumes, images"
+        echo ""
+        echo "Options:"
+        echo "  --prod       Use production compose file and .env.prod"
+        ;;
+    *)
+        err "Unknown command: $1"
+        exec "$0" help
+        ;;
+esac

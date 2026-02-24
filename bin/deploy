@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# =============================================================================
+# deploy - KidNeuro Deployment Management
+# Usage: ./bin/deploy {api|web|games|all|rollback}
+# =============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_DIR"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'
+BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
+
+info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
+ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+err()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+
+REGISTRY="${IMAGE_REGISTRY:-ghcr.io/tgunawandev}"
+TAG="${IMAGE_TAG:-latest}"
+
+build_and_push() {
+    local service="$1"
+    local context="$2"
+    local image="$REGISTRY/kidneuro-$service:$TAG"
+    local sha_tag="$REGISTRY/kidneuro-$service:sha-$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+    local date_tag="$REGISTRY/kidneuro-$service:$(date +%Y%m%d)"
+
+    info "Building $image..."
+    docker build -t "$image" -t "$sha_tag" -t "$date_tag" \
+        --target production \
+        -f "$context/Dockerfile" "$context" 2>/dev/null || \
+    docker build -t "$image" -t "$sha_tag" -t "$date_tag" \
+        -f "$context/Dockerfile" "$context"
+
+    info "Pushing $image..."
+    docker push "$image"
+    docker push "$sha_tag"
+    docker push "$date_tag"
+    ok "$service deployed: $image"
+}
+
+cmd_api() {
+    build_and_push "api" "api"
+}
+
+cmd_web() {
+    build_and_push "web" "web"
+}
+
+cmd_games() {
+    # Build Godot HTML5 exports into nginx
+    info "Preparing game assets..."
+    mkdir -p nginx/games
+
+    # Check for Godot exports
+    if [[ -d "godot/export" ]] && ls godot/export/*.html &>/dev/null; then
+        cp -r godot/export/* nginx/games/
+        info "Godot exports copied to nginx/games/"
+    else
+        warn "No Godot HTML5 exports found in godot/export/"
+        warn "Export from Godot Editor first, or run: ./bin/godot export-html5"
+    fi
+
+    build_and_push "games" "nginx"
+}
+
+cmd_all() {
+    info "Deploying all services..."
+    cmd_api
+    cmd_web
+    cmd_games
+    ok "All services deployed"
+}
+
+cmd_pull_and_restart() {
+    info "Pulling and restarting production services..."
+    docker compose -f docker-compose.prod.yml --env-file .env.prod pull
+    docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+    ok "Services updated"
+}
+
+cmd_login() {
+    info "Logging into GitHub Container Registry..."
+    echo "${GHCR_TOKEN:-}" | docker login ghcr.io -u "${GITHUB_USER:-tgunawandev}" --password-stdin
+    ok "Logged in to GHCR"
+}
+
+case "${1:-help}" in
+    api)                cmd_api ;;
+    web)                cmd_web ;;
+    games)              cmd_games ;;
+    all)                cmd_all ;;
+    pull-restart)       cmd_pull_and_restart ;;
+    login)              cmd_login ;;
+    help|--help|-h)
+        echo "Usage: ./bin/deploy <command>"
+        echo ""
+        echo "Commands:"
+        echo "  api            Build and push API image"
+        echo "  web            Build and push Web dashboard image"
+        echo "  games          Build and push Games (Godot HTML5) image"
+        echo "  all            Build and push all images"
+        echo "  pull-restart   Pull latest images and restart (on server)"
+        echo "  login          Login to GitHub Container Registry"
+        ;;
+    *)
+        err "Unknown command: $1"
+        exec "$0" help
+        ;;
+esac

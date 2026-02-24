@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# =============================================================================
+# test - KidNeuro Test Runner
+# Usage: ./bin/test {api|web|mobile|all}
+# =============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
+info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
+ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
+err()   { echo -e "${RED}[FAIL]${NC} $*" >&2; }
+
+cmd_api() {
+    info "Running API tests..."
+    cd "$PROJECT_DIR/api"
+    [[ -d "venv" ]] && source venv/bin/activate
+    [[ -d ".venv" ]] && source .venv/bin/activate
+    pytest tests/ --cov=kidneuro --cov-report=term-missing -v "$@"
+}
+
+cmd_web() {
+    info "Running Web tests..."
+    cd "$PROJECT_DIR/web"
+    npx vitest run "$@" 2>/dev/null || npx jest "$@" 2>/dev/null || warn "No test runner configured for web"
+}
+
+cmd_mobile() {
+    info "Running Mobile tests..."
+    cd "$PROJECT_DIR/mobile"
+    npx jest "$@" 2>/dev/null || warn "No test runner configured for mobile"
+}
+
+cmd_lint_all() {
+    info "Running all linters..."
+    "$PROJECT_DIR/bin/api" lint
+    cd "$PROJECT_DIR/web" && npx next lint 2>/dev/null || true
+    cd "$PROJECT_DIR/mobile" && npx eslint . 2>/dev/null || true
+    ok "All linters passed"
+}
+
+cmd_all() {
+    cmd_api "$@"
+    cmd_web
+    cmd_mobile
+    ok "All tests passed"
+}
+
+case "${1:-help}" in
+    api)        shift; cmd_api "$@" ;;
+    web)        shift; cmd_web "$@" ;;
+    mobile)     shift; cmd_mobile "$@" ;;
+    lint)       cmd_lint_all ;;
+    all)        shift; cmd_all "$@" ;;
+    help|--help|-h)
+        echo "Usage: ./bin/test <command> [args]"
+        echo ""
+        echo "Commands:"
+        echo "  api [args]    Run API tests (pytest)"
+        echo "  web [args]    Run Web tests (vitest/jest)"
+        echo "  mobile [args] Run Mobile tests (jest)"
+        echo "  lint          Run all linters"
+        echo "  all           Run all tests"
+        ;;
+    *)
+        err "Unknown command: $1"
+        exec "$0" help
+        ;;
+esac

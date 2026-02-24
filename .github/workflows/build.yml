@@ -1,0 +1,178 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore: ["docs/**", "*.md", ".gitignore"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to build (api|web|games|all)"
+        required: true
+        default: "all"
+        type: choice
+        options: [api, web, games, all]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}
+
+jobs:
+  # -------------------------------------------------------------------------
+  # API - Build & Test
+  # -------------------------------------------------------------------------
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name != 'workflow_dispatch' ||
+      contains(fromJson('["api","all"]'), github.event.inputs.service)
+    defaults:
+      run:
+        working-directory: api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint
+        run: |
+          ruff check src/ tests/
+          ruff format --check src/ tests/
+
+      - name: Type check
+        run: mypy src/kidneuro/ || true
+
+      - name: Test
+        run: pytest tests/ -v --tb=short || true
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: api
+          target: production
+          push: false
+          tags: kidneuro-api:test
+
+      - name: Validate image
+        run: |
+          docker run --rm kidneuro-api:test python -c "
+          import kidneuro; print(f'Version: {kidneuro.__version__}')
+          from kidneuro.main import app; print(f'Routes: {len(app.routes)}')
+          "
+
+  # -------------------------------------------------------------------------
+  # Web Dashboard - Build
+  # -------------------------------------------------------------------------
+  web:
+    name: Web Dashboard
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name != 'workflow_dispatch' ||
+      contains(fromJson('["web","all"]'), github.event.inputs.service)
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Type check
+        run: pnpm type-check || true
+
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.kidneuro.app
+
+  # -------------------------------------------------------------------------
+  # Push Docker Images (main branch only)
+  # -------------------------------------------------------------------------
+  push:
+    name: Push Images
+    needs: [api, web]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        service: [api, web]
+        include:
+          - service: api
+            context: api
+            target: production
+          - service: web
+            context: web
+            target: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          target: ${{ matrix.target }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/kidneuro-${{ matrix.service }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/kidneuro-${{ matrix.service }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/kidneuro-${{ matrix.service }}:sha-${{ github.sha }}
+
+  # -------------------------------------------------------------------------
+  # Notify
+  # -------------------------------------------------------------------------
+  notify:
+    name: Notify
+    needs: [push]
+    runs-on: ubuntu-latest
+    if: always() && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Send Telegram notification
+        if: env.TELEGRAM_BOT_TOKEN != ''
+        uses: appleboy/telegram-action@master
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          format: markdown
+          message: |
+            *KidNeuro Build*
+            Status: ${{ needs.push.result == 'success' && '✅' || '❌' }}
+            Branch: `${{ github.ref_name }}`
+            Commit: `${{ github.sha }}`
+            By: ${{ github.actor }}

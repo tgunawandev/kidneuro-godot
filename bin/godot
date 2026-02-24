@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# =============================================================================
+# godot - KidNeuro Godot Game Management
+# Usage: ./bin/godot {editor|export-html5|export-android|list-scenes|clean}
+# =============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+GODOT_DIR="$PROJECT_DIR/godot"
+EXPORT_DIR="$GODOT_DIR/export"
+cd "$GODOT_DIR"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; YELLOW='\033[0;33m'; NC='\033[0m'
+info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
+ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+err()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+
+# Find Godot binary
+GODOT_BIN=""
+for bin in godot godot4 "Godot_v4" "/Applications/Godot.app/Contents/MacOS/Godot"; do
+    if command -v "$bin" &>/dev/null; then
+        GODOT_BIN="$bin"
+        break
+    fi
+done
+
+cmd_editor() {
+    if [[ -z "$GODOT_BIN" ]]; then
+        err "Godot not found. Install Godot 4.x and add to PATH."
+        exit 1
+    fi
+    info "Opening Godot editor..."
+    "$GODOT_BIN" --editor --path "$GODOT_DIR" &
+}
+
+cmd_export_html5() {
+    if [[ -z "$GODOT_BIN" ]]; then
+        err "Godot not found."
+        exit 1
+    fi
+    mkdir -p "$EXPORT_DIR/html5"
+    info "Exporting to HTML5..."
+    "$GODOT_BIN" --headless --path "$GODOT_DIR" --export-release "HTML5" "$EXPORT_DIR/html5/index.html"
+    ok "HTML5 export: $EXPORT_DIR/html5/"
+}
+
+cmd_export_android() {
+    if [[ -z "$GODOT_BIN" ]]; then
+        err "Godot not found."
+        exit 1
+    fi
+    mkdir -p "$EXPORT_DIR/android"
+    info "Exporting to Android..."
+    "$GODOT_BIN" --headless --path "$GODOT_DIR" --export-release "Android" "$EXPORT_DIR/android/kidneuro.apk"
+    ok "Android export: $EXPORT_DIR/android/kidneuro.apk"
+}
+
+cmd_list_scenes() {
+    info "Game scenes:"
+    find "$GODOT_DIR/scenes" -name "*.tscn" -type f 2>/dev/null | while read -r scene; do
+        echo "  ${scene#$GODOT_DIR/}"
+    done
+
+    echo ""
+    info "Scripts:"
+    find "$GODOT_DIR/scripts" -name "*.gd" -type f 2>/dev/null | while read -r script; do
+        echo "  ${script#$GODOT_DIR/}"
+    done
+}
+
+cmd_clean() {
+    info "Cleaning Godot cache and exports..."
+    rm -rf "$GODOT_DIR/.godot" "$GODOT_DIR/.import" "$EXPORT_DIR"
+    ok "Cleaned"
+}
+
+cmd_import() {
+    if [[ -z "$GODOT_BIN" ]]; then
+        err "Godot not found."
+        exit 1
+    fi
+    info "Importing project resources..."
+    "$GODOT_BIN" --headless --path "$GODOT_DIR" --import
+    ok "Import complete"
+}
+
+case "${1:-help}" in
+    editor|edit)        cmd_editor ;;
+    export-html5|html5) cmd_export_html5 ;;
+    export-android|apk) cmd_export_android ;;
+    list|scenes)        cmd_list_scenes ;;
+    clean)              cmd_clean ;;
+    import)             cmd_import ;;
+    help|--help|-h)
+        echo "Usage: ./bin/godot <command>"
+        echo ""
+        echo "Commands:"
+        echo "  editor          Open Godot editor"
+        echo "  export-html5    Export game as HTML5 (for web/mobile WebView)"
+        echo "  export-android  Export game as Android APK"
+        echo "  list            List all scenes and scripts"
+        echo "  clean           Remove cache and export files"
+        echo "  import          Re-import project resources"
+        ;;
+    *)
+        err "Unknown command: $1"
+        exec "$0" help
+        ;;
+esac

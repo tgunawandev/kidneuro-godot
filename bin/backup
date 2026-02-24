@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# =============================================================================
+# backup - KidNeuro Backup & Restore
+# Usage: ./bin/backup {db|files|full|list|restore}
+# =============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+BACKUP_DIR="$PROJECT_DIR/backups"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; BLUE='\033[0;34m'; NC='\033[0m'
+info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
+ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+
+ENV_FILE=".env"
+[[ "${1:-}" == "--prod" ]] && { ENV_FILE=".env.prod"; shift; }
+[[ -f "$PROJECT_DIR/$ENV_FILE" ]] && { set -a; source "$PROJECT_DIR/$ENV_FILE"; set +a; }
+
+DB_HOST="${POSTGRES_HOST:-localhost}"
+DB_PORT="${POSTGRES_PORT:-5432}"
+DB_USER="${POSTGRES_USER:-kidneuro}"
+DB_PASS="${POSTGRES_PASSWORD:-kidneuro_dev_password}"
+DB_NAME="${POSTGRES_DB:-kidneuro_dev}"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+cmd_db() {
+    mkdir -p "$BACKUP_DIR"
+    local file="$BACKUP_DIR/db_${DB_NAME}_${TIMESTAMP}.sql.gz"
+    info "Backing up database $DB_NAME..."
+    PGPASSWORD="$DB_PASS" pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+        --no-owner --no-privileges --clean --if-exists | gzip > "$file"
+    ok "Database backup: $file ($(du -h "$file" | cut -f1))"
+}
+
+cmd_list() {
+    if [[ -d "$BACKUP_DIR" ]]; then
+        info "Available backups:"
+        ls -lhS "$BACKUP_DIR"/ 2>/dev/null || echo "  No backups found"
+    else
+        warn "No backup directory found"
+    fi
+}
+
+cmd_prune() {
+    local keep="${1:-7}"
+    info "Pruning backups, keeping last $keep..."
+    cd "$BACKUP_DIR" 2>/dev/null || { warn "No backups to prune"; return; }
+    ls -t *.sql.gz 2>/dev/null | tail -n +$((keep + 1)) | xargs -r rm -v
+    ok "Old backups removed"
+}
+
+case "${1:-help}" in
+    db)         cmd_db ;;
+    list)       cmd_list ;;
+    prune)      cmd_prune "${2:-7}" ;;
+    help|--help|-h)
+        echo "Usage: ./bin/backup [--prod] <command>"
+        echo ""
+        echo "Commands:"
+        echo "  db            Backup PostgreSQL database"
+        echo "  list          List available backups"
+        echo "  prune [n]     Remove old backups, keep last n (default: 7)"
+        ;;
+    *)
+        echo "Unknown command: $1"; exec "$0" help ;;
+esac

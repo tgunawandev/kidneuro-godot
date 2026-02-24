@@ -1,0 +1,44 @@
+{
+  "cli": {
+    "version": ">= 13.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "API_URL": "http://localhost:8000",
+        "GAME_URL": "http://localhost:8080"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "autoIncrement": true,
+      "env": {
+        "API_URL": "https://api-staging.kidneuro.app",
+        "GAME_URL": "https://games-staging.kidneuro.app"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "API_URL": "https://api.kidneuro.app",
+        "GAME_URL": "https://games.kidneuro.app"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "CHANGEME",
+        "ascAppId": "CHANGEME",
+        "appleTeamId": "CHANGEME"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-services.json",
+        "track": "internal"
+      }
+    }
+  }
+}
