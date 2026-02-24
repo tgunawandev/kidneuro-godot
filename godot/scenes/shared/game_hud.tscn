@@ -1,0 +1,124 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/shared/game_hud.gd" id="1_script"]
+
+[node name="GameHUD" type="CanvasLayer"]
+process_mode = 3
+script = ExtResource("1_script")
+
+[node name="TopBar" type="HBoxContainer" parent="."]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 56.0
+grow_horizontal = 2
+theme_override_constants/separation = 0
+
+[node name="TopBarBg" type="ColorRect" parent="TopBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.15, 0.2, 0.3, 0.85)
+
+[node name="TopBarContent" type="HBoxContainer" parent="."]
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 16.0
+offset_right = -16.0
+offset_bottom = 56.0
+grow_horizontal = 2
+theme_override_constants/separation = 0
+alignment = 1
+
+[node name="ScoreLabel" type="Label" parent="TopBarContent"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "Score: 0"
+vertical_alignment = 1
+
+[node name="LevelLabel" type="Label" parent="TopBarContent"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "Level 1 - Easy"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TimerLabel" type="Label" parent="TopBarContent"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "0:00"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="PauseButton" type="Button" parent="TopBarContent"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(56, 56)
+theme_override_font_sizes/font_size = 22
+text = "||"
+
+[node name="ProgressBar" type="ProgressBar" parent="."]
+unique_name_in_owner = true
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 56.0
+offset_bottom = 68.0
+grow_horizontal = 2
+value = 0.0
+show_percentage = false
+
+[node name="PauseOverlay" type="ColorRect" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.7)
+
+[node name="PauseVBox" type="VBoxContainer" parent="PauseOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -150.0
+offset_top = -120.0
+offset_right = 150.0
+offset_bottom = 120.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="PausedLabel" type="Label" parent="PauseOverlay/PauseVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 40
+text = "Paused"
+horizontal_alignment = 1
+
+[node name="ResumeButton" type="Button" parent="PauseOverlay/PauseVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(200, 60)
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 24
+text = "Resume"
+
+[node name="QuitButton" type="Button" parent="PauseOverlay/PauseVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(200, 60)
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 24
+text = "Quit Game"

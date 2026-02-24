@@ -82,6 +82,27 @@ async def get_child_progress(
     )
     sessions_this_week = week_result.scalar() or 0
 
+    # Calculate improvement trend: compare last 5 sessions vs previous 5
+    improvement_trend = None
+    recent_sessions = await db.execute(
+        select(TherapySession.accuracy)
+        .where(
+            and_(
+                TherapySession.child_id == child_id,
+                TherapySession.status == SessionStatus.COMPLETED,
+                TherapySession.accuracy.isnot(None),
+            )
+        )
+        .order_by(TherapySession.started_at.desc())
+        .limit(10)
+    )
+    acc_values = [row[0] for row in recent_sessions]
+    if len(acc_values) >= 4:
+        mid = len(acc_values) // 2
+        recent_avg = sum(acc_values[:mid]) / mid
+        older_avg = sum(acc_values[mid:]) / (len(acc_values) - mid)
+        improvement_trend = round(recent_avg - older_avg, 3)
+
     return {
         "child_id": child_id,
         "total_sessions": total,
@@ -90,7 +111,7 @@ async def get_child_progress(
         "avg_accuracy": round(float(avg_accuracy), 3) if avg_accuracy else None,
         "avg_score": round(float(avg_score), 1) if avg_score else None,
         "sessions_this_week": sessions_this_week,
-        "improvement_trend": None,  # TODO: calculate from recent vs older sessions
+        "improvement_trend": improvement_trend,
     }
 
 

@@ -1,0 +1,89 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/shared/reward_popup.gd" id="1_script"]
+
+[node name="RewardPopup" type="CanvasLayer"]
+process_mode = 3
+script = ExtResource("1_script")
+
+[node name="Overlay" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+
+[node name="RewardPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -200.0
+offset_right = 220.0
+offset_bottom = 200.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="RewardPanel"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="RewardTitle" type="Label" parent="RewardPanel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.55, 0.85, 1)
+theme_override_font_sizes/font_size = 32
+text = "Session Complete!"
+horizontal_alignment = 1
+
+[node name="StarsContainer" type="HBoxContainer" parent="RewardPanel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="RewardScoreLabel" type="Label" parent="RewardPanel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.3, 0.4, 1)
+theme_override_font_sizes/font_size = 26
+text = "Score: 0"
+horizontal_alignment = 1
+
+[node name="MessageLabel" type="Label" parent="RewardPanel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.7, 0.4, 1)
+theme_override_font_sizes/font_size = 24
+text = "Great job!"
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="RewardPanel/VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 10)
+
+[node name="ButtonsContainer" type="HBoxContainer" parent="RewardPanel/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="PlayAgainButton" type="Button" parent="RewardPanel/VBoxContainer/ButtonsContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(180, 56)
+theme_override_font_sizes/font_size = 20
+text = "Play Again"
+
+[node name="MenuButton" type="Button" parent="RewardPanel/VBoxContainer/ButtonsContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(180, 56)
+theme_override_font_sizes/font_size = 20
+text = "Back to Menu"

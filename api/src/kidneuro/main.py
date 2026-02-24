@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from kidneuro.config import get_settings
-from kidneuro.routers import auth, children, games, health, sessions, users, analytics
+from kidneuro.routers import auth, children, games, health, sessions, users, analytics, telemetry, difficulty
 
 settings = get_settings()
 logger = structlog.get_logger()
@@ -66,3 +66,5 @@ app.include_router(children.router, prefix="/api/v1/children", tags=["Children"]
 app.include_router(games.router, prefix="/api/v1/games", tags=["Games"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Therapy Sessions"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
+app.include_router(telemetry.router, prefix="/api/v1/telemetry", tags=["Telemetry"])
+app.include_router(difficulty.router, prefix="/api/v1/difficulty", tags=["Difficulty"])
